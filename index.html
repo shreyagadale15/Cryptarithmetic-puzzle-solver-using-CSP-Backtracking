@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cryptarithmetic Solver</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f3f4f6;
+    margin: 0;
+    padding: 30px 15px;
+}
+
+.container {
+    max-width: 650px;
+    margin: auto;
+}
+
+h1 {
+    text-align: center;
+    color: #243b80;
+}
+
+.subtitle {
+    text-align: center;
+    color: #666;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 12px;
+    box-shadow: 0 3px 12px #00000015;
+}
+
+label {
+    font-weight: bold;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    font-size: 18px;
+    border: 1px solid #ccc;
+    border-radius: 7px;
+    text-transform: uppercase;
+}
+
+button {
+    padding: 10px 15px;
+    margin: 7px 3px;
+    border: none;
+    border-radius: 7px;
+    background: #3155c6;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #172f85;
+}
+
+.output {
+    text-align: center;
+    font-family: monospace;
+    font-size: 20px;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+.answer {
+    color: green;
+    font-weight: bold;
+}
+
+.mapping {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.mapping span {
+    padding: 8px 12px;
+    background: #e5eaff;
+    border-radius: 6px;
+}
+
+.error {
+    color: red;
+    text-align: center;
+}
+
+.stats {
+    text-align: center;
+    color: #777;
+    margin-top: 15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Cryptarithmetic Solver</h1>
+
+<p class="subtitle">
+Constraint Satisfaction Problem using Backtracking
+</p>
+
+<div class="card">
+
+<label>Enter Cryptarithmetic Puzzle:</label>
+
+<input type="text" id="puzzle"
+value="SEND + MORE = MONEY">
+
+<button onclick="solvePuzzle()">Solve Puzzle</button>
+
+<button onclick="setPuzzle('TWO + TWO = FOUR')">
+TWO + TWO
+</button>
+
+<button onclick="setPuzzle('SEND + MORE = MONEY')">
+SEND + MORE
+</button>
+
+</div>
+
+<div class="card">
+<h3>Solution Output</h3>
+<div id="output"></div>
+</div>
+
+<div class="card">
+<h3>How It Works</h3>
+<p>
+Each letter represents a unique digit from 0 to 9.
+The solver uses CSP constraints and backtracking
+to find valid digit assignments.
+</p>
+</div>
+
+</div>
+
+<script>
+
+function setPuzzle(value) {
+    document.getElementById("puzzle").value = value;
+    solvePuzzle();
+}
+
+function solvePuzzle() {
+
+    let puzzle = document.getElementById("puzzle")
+        .value.toUpperCase().replace(/\s/g, "");
+
+    let output = document.getElementById("output");
+
+    let parts = puzzle.split("=");
+
+    if (parts.length !== 2) {
+        output.innerHTML = '<p class="error">Invalid puzzle format!</p>';
+        return;
+    }
+
+    let words = parts[0].split("+");
+    let result = parts[1];
+
+    let allWords = [...words, result];
+
+    if (allWords.some(w => !/^[A-Z]+$/.test(w))) {
+        output.innerHTML = '<p class="error">Enter only letters, + and =.</p>';
+        return;
+    }
+
+    let letters = [...new Set(allWords.join(""))];
+
+    if (letters.length > 10) {
+        output.innerHTML = '<p class="error">Maximum 10 letters allowed!</p>';
+        return;
+    }
+
+    let leading = new Set(
+        allWords.filter(w => w.length > 1).map(w => w[0])
+    );
+
+    let values = {};
+    let used = Array(10).fill(false);
+    let nodes = 0;
+    let backtracks = 0;
+    let solution = null;
+
+    function check() {
+
+        let carry = 0;
+        let maxLen = Math.max(...allWords.map(w => w.length));
+
+        for (let col = 0; col < maxLen; col++) {
+
+            let sum = carry;
+
+            for (let word of words) {
+                let ch = word[word.length - 1 - col];
+
+                if (ch) {
+                    if (values[ch] === undefined) return true;
+                    sum += values[ch];
+                }
+            }
+
+            let ch = result[result.length - 1 - col];
+
+            if (!ch) {
+                if (sum !== 0) return false;
+            } else {
+                if (values[ch] === undefined) return true;
+
+                if (sum % 10 !== values[ch]) return false;
+            }
+
+            carry = Math.floor(sum / 10);
+        }
+
+        return carry === 0;
+    }
+
+    function backtrack(index) {
+
+        if (solution) return;
+
+        if (index === letters.length) {
+            if (check()) solution = {...values};
+            return;
+        }
+
+        let letter = letters[index];
+
+        for (let digit = 0; digit <= 9; digit++) {
+
+            if (used[digit]) continue;
+
+            if (digit === 0 && leading.has(letter)) continue;
+
+            nodes++;
+
+            values[letter] = digit;
+            used[digit] = true;
+
+            if (check()) {
+                backtrack(index + 1);
+            } else {
+                backtracks++;
+            }
+
+            delete values[letter];
+            used[digit] = false;
+        }
+    }
+
+    let start = performance.now();
+
+    backtrack(0);
+
+    let time = (performance.now() - start).toFixed(2);
+
+    if (!solution) {
+        output.innerHTML =
+            '<p class="error">No solution found!</p>';
+        return;
+    }
+
+    function convert(word) {
+        return [...word].map(ch => solution[ch]).join("");
+    }
+
+    let maxLen = Math.max(...allWords.map(w => w.length));
+
+    let html = '<div class="output">';
+
+    html += '<b>Original Puzzle</b><br>';
+
+    words.forEach((word, i) => {
+        html += (i === 0 ? "  " : "+ ") +
+            word.padStart(maxLen) + "<br>";
+    });
+
+    html += "  " + "-".repeat(maxLen) + "<br>";
+    html += "= " + result + "<br><br>";
+
+    html += '<b class="answer">Solved Equation</b><br>';
+
+    words.forEach((word, i) => {
+        html += (i === 0 ? "  " : "+ ") +
+            '<span class="answer">' +
+            convert(word).padStart(maxLen) +
+            '</span><br>';
+    });
+
+    html += "  " + "-".repeat(maxLen) + "<br>";
+    html += '= <span class="answer">' +
+        convert(result) + '</span>';
+
+    html += '</div>';
+
+    html += '<div class="mapping">';
+
+    letters.sort().forEach(letter => {
+        html += `<span>${letter} = <b>${solution[letter]}</b></span>`;
+    });
+
+    html += '</div>';
+
+    html += `<p class="stats">
+        Nodes: ${nodes} |
+        Backtracks: ${backtracks} |
+        Time: ${time} ms
+    </p>`;
+
+    output.innerHTML = html;
+}
+
+solvePuzzle();
+
+</script>
+
+</body>
+</html>
